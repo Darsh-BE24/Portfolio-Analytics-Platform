@@ -46,8 +46,13 @@ describe("formatNumber and formatCurrency", () => {
     expect(formatNumber(1.23456, 3)).toBe("1.235");
   });
 
-  it("formats US currency with thousands separators", () => {
-    expect(formatCurrency(6130.5)).toBe("$6,130.50");
+  it("formats Indian rupees", () => {
+    expect(formatCurrency(6130.5)).toBe("₹6,130.50");
+  });
+
+  it("groups digits the Indian way (lakh and crore)", () => {
+    expect(formatCurrency(1234567.891)).toBe("₹12,34,567.89");
+    expect(formatCurrency(123456789)).toBe("₹12,34,56,789.00");
   });
 
   it("handles missing values", () => {

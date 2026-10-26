@@ -50,7 +50,7 @@ def test_portfolio_defaults_applied(db_session):
     db_session.commit()
 
     fetched = db_session.get(PortfolioModel, portfolio.id)
-    assert fetched.benchmark_ticker == "^GSPC"
+    assert fetched.benchmark_ticker == "^NSEI"
     assert fetched.lookback_years == 3.0
     assert fetched.created_at is not None
 

@@ -28,6 +28,7 @@ from sqlalchemy.pool import StaticPool
 
 from backend import data as data_module
 from backend.db import Base, get_db
+from backend.market import normalize_ticker
 
 
 # Reserved sentinel ticker: any test that needs to simulate a genuinely
@@ -52,7 +53,7 @@ def _fake_download(tickers=None, start=None, end=None, **kwargs):
     fields = ["Open", "High", "Low", "Close", "Volume"]
 
     def _series_for(ticker: str) -> pd.Series:
-        if ticker == INVALID_TICKER:
+        if normalize_ticker(ticker) == normalize_ticker(INVALID_TICKER):  # the API appends ".NS" to bare symbols
             return pd.Series([float("nan")] * len(dates), index=dates)
         seed = abs(hash(ticker)) % (2**32)
         rng = np.random.RandomState(seed)

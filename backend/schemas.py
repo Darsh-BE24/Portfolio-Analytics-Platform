@@ -12,16 +12,29 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, Field, field_validator
 
+from backend.market import DEFAULT_BENCHMARK, normalize_ticker
+
 
 class HoldingIn(BaseModel):
     ticker: str
     quantity: float = Field(gt=0, description="Must be positive; short positions are not supported.")
 
+    @field_validator("ticker")
+    @classmethod
+    def normalize_holding_ticker(cls, v: str) -> str:
+        """Bare symbols become NSE symbols ("RELIANCE" -> "RELIANCE.NS"); see backend/market.py."""
+        return normalize_ticker(v)
+
 
 class PortfolioCreateRequest(BaseModel):
     holdings: list[HoldingIn]
-    benchmark: str = "^GSPC"
+    benchmark: str = DEFAULT_BENCHMARK
     lookback_years: float = Field(default=3.0, gt=0, le=10)
+
+    @field_validator("benchmark")
+    @classmethod
+    def normalize_benchmark(cls, v: str) -> str:
+        return normalize_ticker(v)
 
     @field_validator("holdings")
     @classmethod
@@ -46,7 +59,7 @@ class PortfolioCreateRequest(BaseModel):
         """
         seen: dict[str, int] = {}
         for position, holding in enumerate(v):
-            normalized = holding.ticker.strip().upper()
+            normalized = normalize_ticker(holding.ticker)  # already normalized by HoldingIn; kept for safety
             if normalized in seen:
                 raise ValueError(
                     f"Duplicate ticker '{normalized}' (rows {seen[normalized] + 1} and "

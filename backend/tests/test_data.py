@@ -97,7 +97,7 @@ def test_get_benchmark_data_uses_default_ticker(monkeypatch):
     svc = MarketDataService()
     benchmark = svc.get_benchmark_data(date(2024, 1, 1), date(2024, 1, 15))
 
-    assert benchmark.name == "^GSPC"
+    assert benchmark.name == "^NSEI"
     assert benchmark.iloc[0] == pytest.approx(100.0)
 
 

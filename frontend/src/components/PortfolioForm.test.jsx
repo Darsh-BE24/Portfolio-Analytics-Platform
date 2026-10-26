@@ -4,10 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 import PortfolioForm from "./PortfolioForm";
 
 describe("PortfolioForm", () => {
-  it("starts with the four example holdings", () => {
+  it("starts with four example Indian holdings", () => {
     render(<PortfolioForm onSubmit={() => {}} />);
-    expect(screen.getByLabelText("Ticker, row 1")).toHaveValue("AAPL");
-    expect(screen.getByLabelText("Ticker, row 4")).toHaveValue("AMZN");
+    expect(screen.getByLabelText("Ticker, row 1")).toHaveValue("RELIANCE");
+    expect(screen.getByLabelText("Ticker, row 4")).toHaveValue("INFY");
     expect(screen.getByLabelText("Shares, row 3")).toHaveValue("8");
   });
 
@@ -20,12 +20,12 @@ describe("PortfolioForm", () => {
     expect(onSubmit).toHaveBeenCalledTimes(1);
     expect(onSubmit).toHaveBeenCalledWith({
       holdings: [
-        { ticker: "AAPL", quantity: 10 },
-        { ticker: "MSFT", quantity: 5 },
-        { ticker: "NVDA", quantity: 8 },
-        { ticker: "AMZN", quantity: 4 },
+        { ticker: "RELIANCE.NS", quantity: 10 },
+        { ticker: "TCS.NS", quantity: 5 },
+        { ticker: "HDFCBANK.NS", quantity: 8 },
+        { ticker: "INFY.NS", quantity: 4 },
       ],
-      benchmark: "^GSPC",
+      benchmark: "^NSEI",
       lookback_years: 3,
     });
   });
@@ -36,16 +36,16 @@ describe("PortfolioForm", () => {
     await userEvent.click(screen.getByRole("button", { name: "Add a holding" }));
     expect(screen.getByLabelText("Ticker, row 5")).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "Remove AAPL" }));
-    expect(screen.queryByDisplayValue("AAPL")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Remove RELIANCE" }));
+    expect(screen.queryByDisplayValue("RELIANCE")).not.toBeInTheDocument();
   });
 
   it("won't remove the last remaining row", async () => {
     render(<PortfolioForm onSubmit={() => {}} />);
-    for (const ticker of ["AAPL", "MSFT", "NVDA"]) {
+    for (const ticker of ["RELIANCE", "TCS", "HDFCBANK"]) {
       await userEvent.click(screen.getByRole("button", { name: `Remove ${ticker}` }));
     }
-    expect(screen.getByRole("button", { name: "Remove AMZN" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Remove INFY" })).toBeDisabled();
   });
 
   it("blocks submission and lists problems when input is invalid", async () => {
@@ -58,7 +58,7 @@ describe("PortfolioForm", () => {
 
     expect(onSubmit).not.toHaveBeenCalled();
     const alert = screen.getByRole("alert");
-    expect(within(alert).getByText(/AAPL quantity must be greater than zero/)).toBeInTheDocument();
+    expect(within(alert).getByText(/RELIANCE\.NS quantity must be greater than zero/)).toBeInTheDocument();
   });
 
   it("catches duplicate tickers", async () => {
@@ -66,11 +66,26 @@ describe("PortfolioForm", () => {
     render(<PortfolioForm onSubmit={onSubmit} />);
 
     await userEvent.clear(screen.getByLabelText("Ticker, row 2"));
-    await userEvent.type(screen.getByLabelText("Ticker, row 2"), "aapl");
+    await userEvent.type(screen.getByLabelText("Ticker, row 2"), "reliance");
     await userEvent.click(screen.getByRole("button", { name: "Analyze portfolio" }));
 
     expect(onSubmit).not.toHaveBeenCalled();
-    expect(screen.getByText(/AAPL appears more than once/)).toBeInTheDocument();
+    expect(screen.getByText(/RELIANCE\.NS appears more than once/)).toBeInTheDocument();
+  });
+
+  it("sends a bare benchmark as an NSE symbol and keeps an index as typed", async () => {
+    const onSubmit = vi.fn();
+    render(<PortfolioForm onSubmit={onSubmit} />);
+
+    await userEvent.clear(screen.getByLabelText("Benchmark"));
+    await userEvent.type(screen.getByLabelText("Benchmark"), "niftybees");
+    await userEvent.click(screen.getByRole("button", { name: "Analyze portfolio" }));
+    expect(onSubmit.mock.calls[0][0].benchmark).toBe("NIFTYBEES.NS");
+
+    await userEvent.clear(screen.getByLabelText("Benchmark"));
+    await userEvent.type(screen.getByLabelText("Benchmark"), "^bsesn");
+    await userEvent.click(screen.getByRole("button", { name: "Analyze portfolio" }));
+    expect(onSubmit.mock.calls[1][0].benchmark).toBe("^BSESN");
   });
 
   it("rejects an out-of-range history length", async () => {

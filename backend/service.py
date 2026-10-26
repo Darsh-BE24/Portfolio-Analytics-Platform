@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 from backend.backtest import holdings_weights_as_of, run_backtest, train_test_split
 from backend.cache import get_benchmark_data_cached, get_price_data_cached
 from backend.data import MarketDataService
+from backend.market import normalize_ticker
 from backend.models import PortfolioHolding, PortfolioModel
 from backend.optimization import efficient_frontier as compute_efficient_frontier
 from backend.optimization import expected_returns, maximum_sharpe, minimum_volatility
@@ -149,7 +150,7 @@ class PortfolioService:
         # benchmark was also never validated at creation at all -- an
         # invalid benchmark would only surface later, the first time
         # /performance or /risk happened to need it.
-        benchmark = request.benchmark.strip().upper()
+        benchmark = normalize_ticker(request.benchmark)
         latest_prices = self.market_data.get_latest_prices(portfolio.tickers + [benchmark])
 
         row = PortfolioModel(benchmark_ticker=benchmark, lookback_years=request.lookback_years)

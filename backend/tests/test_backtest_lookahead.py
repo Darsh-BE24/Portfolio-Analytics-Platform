@@ -27,13 +27,17 @@ from backend.backtest import (
     compute_turnover,
     train_test_split,
 )
+from backend.market import TRADING_DAYS_PER_YEAR
 from backend.optimization import minimum_volatility
 from backend.performance import daily_returns
 from backend.schemas import BacktestRequest, PortfolioCreateRequest
 from backend.service import PortfolioService
 
 CALENDAR = pd.bdate_range("2018-01-01", "2035-12-31")
-QUANTITIES = {"A": 30.0, "B": 10.0}
+# The API gives bare symbols the NSE suffix ("A" -> "A.NS"), so the fake market and every
+# expectation below use the symbols the service really sees.
+A, B = "A.NS", "B.NS"
+QUANTITIES = {A: 30.0, B: 10.0}
 
 
 def _walk(seed, drift=0.0004, vol=0.012):
@@ -60,8 +64,8 @@ def _scenario(split):
     """A: unchanged up to the split date, then ramps to 3x by today. B and the benchmark: plain walks."""
     factor = np.interp(np.arange(len(CALENDAR)), [_pos(split), _pos(date.today())], [1.0, 3.0])
     return {
-        "A": _walk(11) * factor,
-        "B": _walk(22, drift=0.0003),
+        A: _walk(11) * factor,
+        B: _walk(22, drift=0.0003),
         "^GSPC": _walk(33, drift=0.0003, vol=0.009),
     }
 
@@ -114,12 +118,14 @@ def test_current_strategy_uses_split_date_weights_not_todays_live_weights(db_ses
     live_weights = _expected_weights(series, QUANTITIES, date.today())
 
     # Sanity of the scenario itself: A's tripling makes the two allocations clearly different.
-    assert live_weights["A"] - split_weights["A"] > 0.05
+    # (The scenario is anchored to today's date, so the size of the gap drifts from day to day; the
+    # threshold is set well below its smallest value over 2026-2034 rather than at a lucky size.)
+    assert live_weights[A] - split_weights[A] > 0.02
 
     current = _backtest(db_session, world, split).strategies["current"].weights
 
     assert current == pytest.approx(split_weights, abs=1e-9)
-    assert current["A"] < live_weights["A"] - 0.05  # NOT today's live weights (the old behavior)
+    assert current[A] < live_weights[A] - 0.02  # NOT today's live weights (the old behavior)
 
 
 def test_leaking_todays_weights_really_would_inflate_the_current_strategy(db_session, world, split):
@@ -135,7 +141,9 @@ def test_leaking_todays_weights_really_would_inflate_the_current_strategy(db_ses
     honest = buy_and_hold_returns(test_prices, _expected_weights(series, QUANTITIES, split))
     leaked = buy_and_hold_returns(test_prices, _expected_weights(series, QUANTITIES, date.today()))
 
-    assert (1 + leaked).prod() > (1 + honest).prod() * 1.05
+    # Leaking inflates the result. The size of the inflation depends on today's date (the scenario is
+    # anchored to it): over 2026-2034 it ranges from about 1.8% to 13%, so require only a clear 1%.
+    assert (1 + leaked).prod() > (1 + honest).prod() * 1.01
 
 
 def test_current_strategy_result_matches_an_independent_buy_and_hold(db_session, world, split):
@@ -151,7 +159,7 @@ def test_current_strategy_result_matches_an_independent_buy_and_hold(db_session,
     value = sum(shares[t] * test[t] for t in QUANTITIES)
     expected_total = float(value.iloc[-1] / value.iloc[0])
     n_returns = len(test) - 1
-    expected_cagr = expected_total ** (252 / n_returns) - 1
+    expected_cagr = expected_total ** (TRADING_DAYS_PER_YEAR / n_returns) - 1
 
     metrics = _backtest(db_session, world, split).strategies["current"].metrics
     assert metrics["cagr"] == pytest.approx(expected_cagr, rel=1e-9)
@@ -164,7 +172,7 @@ def test_other_strategies_are_unaffected_by_the_fix(db_session, world, split):
     result = _backtest(db_session, world, split)
 
     assert set(result.strategies) == {"current", "equal_weight", "min_volatility", "max_sharpe", "benchmark"}
-    assert result.strategies["equal_weight"].weights == pytest.approx({"A": 0.5, "B": 0.5})
+    assert result.strategies["equal_weight"].weights == pytest.approx({A: 0.5, B: 0.5})
     assert result.strategies["benchmark"].weights is None
 
     # min-volatility depends on training data only -- re-derive it independently.
@@ -199,11 +207,11 @@ def test_transaction_cost_is_charged_on_turnover_from_the_split_date_allocation(
     assert turnover > 0.2  # 75/25 -> 50/50: a real switch
 
     # Issue #8 wealth equation: wealth is scaled by (1 - turnover * cost) once, at entry,
-    # so (1 + CAGR) scales by that factor ** (252 / n_returns).
+    # so (1 + CAGR) scales by that factor ** (TRADING_DAYS_PER_YEAR / n_returns).
     test_rows = CALENDAR[(CALENDAR > pd.Timestamp(split)) & (CALENDAR <= pd.Timestamp(date.today()))]
     n_returns = len(test_rows) - 1
     ratio = (1 + costly.strategies["equal_weight"].metrics["cagr"]) / (1 + free.strategies["equal_weight"].metrics["cagr"])
-    assert ratio == pytest.approx((1 - turnover * 0.02) ** (252 / n_returns), rel=1e-9)
+    assert ratio == pytest.approx((1 - turnover * 0.02) ** (TRADING_DAYS_PER_YEAR / n_returns), rel=1e-9)
 
 
 # --- boundary dates ------------------------------------------------------------------
@@ -251,14 +259,14 @@ def test_split_date_that_is_itself_a_trading_day_includes_that_days_price(db_ses
 def test_short_gap_ending_at_the_split_date_uses_the_last_available_price(db_session, world, split):
     _, _, market, series = world
     i = _pos(split)
-    gapped = series["B"].copy()
+    gapped = series[B].copy()
     gapped.iloc[i - 2: i + 1] = np.nan  # 3 missing observations ending at the split date
-    market.series = {**series, "B": gapped}
+    market.series = {**series, B: gapped}
 
     current = _backtest(db_session, world, split).strategies["current"].weights
 
-    last_known_b = float(series["B"].iloc[i - 3])
-    values = {"A": QUANTITIES["A"] * float(series["A"].iloc[i]), "B": QUANTITIES["B"] * last_known_b}
+    last_known_b = float(series[B].iloc[i - 3])
+    values = {A: QUANTITIES[A] * float(series[A].iloc[i]), B: QUANTITIES[B] * last_known_b}
     total = sum(values.values())
     assert current == pytest.approx({t: v / total for t, v in values.items()}, abs=1e-9)
 
@@ -266,21 +274,21 @@ def test_short_gap_ending_at_the_split_date_uses_the_last_available_price(db_ses
 def test_long_gap_ending_at_the_split_date_is_rejected_naming_the_asset(db_session, world, split):
     _, _, market, series = world
     i = _pos(split)
-    gapped = series["B"].copy()
+    gapped = series[B].copy()
     gapped.iloc[i - 5: i + 1] = np.nan  # 6 missing observations: beyond the 5-observation policy
-    market.series = {**series, "B": gapped}
+    market.series = {**series, B: gapped}
 
-    with pytest.raises(BacktestError, match="'B'"):
+    with pytest.raises(BacktestError, match="'B\\.NS'"):
         _backtest(db_session, world, split)
 
 
 def test_holding_with_no_price_before_the_split_date_is_rejected_naming_the_asset(db_session, world, split):
     _, _, market, series = world
-    late = series["B"].copy()
+    late = series[B].copy()
     late.iloc[: _pos(split) + 1] = np.nan  # B only starts trading after the split date
-    market.series = {**series, "B": late}
+    market.series = {**series, B: late}
 
-    with pytest.raises(BacktestError, match="'B'.*split date"):
+    with pytest.raises(BacktestError, match="'B\\.NS'.*split date"):
         _backtest(db_session, world, split)
 
 

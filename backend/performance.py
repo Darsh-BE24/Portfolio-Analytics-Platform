@@ -8,7 +8,7 @@ testable with fixed, hand-checkable inputs.
 Conventions used throughout this module:
 - "returns" always means SIMPLE daily returns (R_t = P_t / P_(t-1) - 1),
   not log returns, unless a function name says otherwise.
-- Annualization uses TRADING_DAYS_PER_YEAR = 252 by default, but every
+- Annualization uses TRADING_DAYS_PER_YEAR (see backend/market.py) by default, but every
   function accepts periods_per_year as a parameter so this is never
   silently hard-coded where it matters.
 - A daily risk-free rate is derived by dividing the ANNUAL risk-free rate
@@ -22,7 +22,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-TRADING_DAYS_PER_YEAR = 252
+from backend.market import TRADING_DAYS_PER_YEAR  # noqa: F401 -- re-exported; risk/optimization import it from here
 
 # Longest run of consecutive missing price observations (for one asset) that is
 # bridged by carrying the last observed price forward. Short gaps are normal

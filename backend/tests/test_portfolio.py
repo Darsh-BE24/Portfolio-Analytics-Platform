@@ -45,6 +45,16 @@ def test_ticker_with_dash_is_valid():
     Portfolio({"BF-B": 3}).validate()
 
 
+def test_ticker_with_ampersand_is_valid():
+    # NSE symbols such as M&M and L&TFH contain '&'
+    Portfolio({"M&M.NS": 3}).validate()
+
+
+def test_dollar_sign_ticker_is_still_invalid_with_an_exchange_suffix():
+    with pytest.raises(PortfolioValidationError):
+        Portfolio({"$$$.NS": 3}).validate()
+
+
 def test_ticker_with_caret_is_valid():
     Portfolio({"^GSPC": 1}).validate()
 

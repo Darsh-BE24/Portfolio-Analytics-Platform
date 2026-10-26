@@ -1,11 +1,12 @@
 import { useState } from "react";
+import { DEFAULT_BENCHMARK, normalizeTicker } from "../market";
 import { validateHoldings } from "../utils/holdings";
 
 const DEFAULT_ROWS = [
-  { ticker: "AAPL", quantity: "10" },
-  { ticker: "MSFT", quantity: "5" },
-  { ticker: "NVDA", quantity: "8" },
-  { ticker: "AMZN", quantity: "4" },
+  { ticker: "RELIANCE", quantity: "10" },
+  { ticker: "TCS", quantity: "5" },
+  { ticker: "HDFCBANK", quantity: "8" },
+  { ticker: "INFY", quantity: "4" },
 ];
 
 /**
@@ -14,7 +15,7 @@ const DEFAULT_ROWS = [
  */
 export default function PortfolioForm({ onSubmit, busy = false, serverError = null }) {
   const [rows, setRows] = useState(DEFAULT_ROWS);
-  const [benchmark, setBenchmark] = useState("^GSPC");
+  const [benchmark, setBenchmark] = useState(DEFAULT_BENCHMARK);
   const [lookbackYears, setLookbackYears] = useState("3");
   const [errors, setErrors] = useState([]);
 
@@ -41,7 +42,7 @@ export default function PortfolioForm({ onSubmit, busy = false, serverError = nu
       allErrors.push("History must be between 0 and 10 years.");
     }
     if (!benchmark.trim()) {
-      allErrors.push("Enter a benchmark ticker, such as ^GSPC.");
+      allErrors.push("Enter a benchmark ticker, such as ^NSEI.");
     }
 
     setErrors(allErrors);
@@ -49,7 +50,7 @@ export default function PortfolioForm({ onSubmit, busy = false, serverError = nu
 
     onSubmit({
       holdings,
-      benchmark: benchmark.trim().toUpperCase(),
+      benchmark: normalizeTicker(benchmark),
       lookback_years: years,
     });
   }
@@ -94,6 +95,9 @@ export default function PortfolioForm({ onSubmit, busy = false, serverError = nu
         <button type="button" className="link-button" onClick={addRow}>
           Add a holding
         </button>
+        <p className="muted">
+          NSE symbols work as typed: RELIANCE becomes RELIANCE.NS. For BSE, add .BO (RELIANCE.BO).
+        </p>
       </fieldset>
 
       <div className="field-pair">

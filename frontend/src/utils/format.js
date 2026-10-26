@@ -4,6 +4,8 @@
  * value renders as an em dash instead of "NaN%".
  */
 
+import { CURRENCY, LOCALE } from "../market";
+
 const MISSING = "\u2014";
 
 function isMissing(value) {
@@ -28,9 +30,9 @@ export function formatNumber(value, digits = 2) {
 
 export function formatCurrency(value, digits = 2) {
   if (isMissing(value)) return MISSING;
-  return value.toLocaleString("en-US", {
+  return value.toLocaleString(LOCALE, {
     style: "currency",
-    currency: "USD",
+    currency: CURRENCY,
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   });

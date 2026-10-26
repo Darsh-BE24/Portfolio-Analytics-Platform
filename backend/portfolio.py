@@ -31,8 +31,8 @@ class Portfolio:
     Represents a set of holdings and computes valuation/weights.
 
     Example:
-        p = Portfolio({"AAPL": 10, "MSFT": 5, "NVDA": 8, "AMZN": 4})
-        valuation = p.value(prices={"AAPL": 230.1, "MSFT": 415.2, "NVDA": 118.4, "AMZN": 186.3})
+        p = Portfolio({"RELIANCE.NS": 10, "TCS.NS": 5, "HDFCBANK.NS": 8, "INFY.NS": 4})
+        valuation = p.value(prices={"RELIANCE.NS": 1290.5, "TCS.NS": 3050.0, "HDFCBANK.NS": 1710.2, "INFY.NS": 1560.8})
     """
 
     def __init__(self, holdings: dict[str, float]):
@@ -51,7 +51,7 @@ class Portfolio:
         if not self.holdings:
             raise PortfolioValidationError("Portfolio has no holdings")
 
-        valid_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ^-.1234567890"
+        valid_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ^-.&1234567890"
 
         for ticker, quantity in self.holdings.items():
             if not isinstance(quantity, (int, float)):
