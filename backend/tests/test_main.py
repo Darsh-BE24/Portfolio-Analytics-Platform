@@ -277,3 +277,50 @@ def test_cors_preflight_request_succeeds_for_allowed_origin(client):
 def test_cors_does_not_allow_unlisted_origin(client):
     response = client.get("/health", headers={"Origin": "http://evil.example.com"})
     assert "access-control-allow-origin" not in response.headers
+
+
+# --- Indian market: ticker normalization at the API boundary ---
+
+def test_create_portfolio_appends_nse_suffix_to_bare_tickers(client):
+    response = _create_portfolio(
+        client,
+        holdings=[{"ticker": "reliance", "quantity": 10}, {"ticker": " TCS ", "quantity": 5}],
+        benchmark="niftybees",
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert {p["ticker"] for p in body["positions"]} == {"RELIANCE.NS", "TCS.NS"}
+    assert body["benchmark"] == "NIFTYBEES.NS"
+
+
+def test_create_portfolio_keeps_explicit_suffixes_and_indices(client):
+    response = _create_portfolio(
+        client,
+        holdings=[{"ticker": "RELIANCE.BO", "quantity": 10}, {"ticker": "TCS.NS", "quantity": 5}],
+        benchmark="^BSESN",
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert {p["ticker"] for p in body["positions"]} == {"RELIANCE.BO", "TCS.NS"}
+    assert body["benchmark"] == "^BSESN"
+
+
+def test_create_portfolio_default_benchmark_is_nifty_50(client):
+    response = client.post("/portfolio", json={"holdings": [{"ticker": "RELIANCE", "quantity": 10}]})
+    assert response.status_code == 200
+    assert response.json()["benchmark"] == "^NSEI"
+
+
+def test_create_portfolio_rejects_the_same_stock_with_and_without_suffix(client):
+    response = _create_portfolio(
+        client,
+        holdings=[{"ticker": "reliance", "quantity": 10}, {"ticker": "RELIANCE.NS", "quantity": 5}],
+    )
+    assert response.status_code == 422
+    assert "Duplicate ticker" in response.text
+
+
+def test_create_portfolio_accepts_ampersand_symbols(client):
+    response = _create_portfolio(client, holdings=[{"ticker": "m&m", "quantity": 3}])
+    assert response.status_code == 200
+    assert response.json()["positions"][0]["ticker"] == "M&M.NS"

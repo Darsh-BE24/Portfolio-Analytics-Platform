@@ -23,6 +23,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from backend.market import TRADING_DAYS_PER_YEAR
 from backend.optimization import maximum_sharpe, minimum_volatility, WeightBounds
 from backend.performance import (
     MAX_FFILL_GAP,
@@ -243,7 +244,7 @@ def strategy_performance_summary(
 
     summary = {
         "cagr": cagr(returns),
-        "volatility": float(returns.std() * np.sqrt(252)),
+        "volatility": float(returns.std() * np.sqrt(TRADING_DAYS_PER_YEAR)),
         "max_drawdown": max_drawdown(returns),
     }
 

@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+import backend.backtest as backtest_module
+
 from backend.backtest import (
     BacktestError,
     apply_one_time_transaction_cost,
@@ -391,3 +393,12 @@ def test_run_backtest_min_volatility_weights_only_from_training_window():
 def test_run_backtest_empty_prices_raises():
     with pytest.raises(BacktestError):
         run_backtest(pd.DataFrame(), pd.Series(dtype=float), pd.Timestamp("2024-01-01"), {})
+
+
+def test_summary_volatility_annualizes_with_the_shared_trading_days_constant(monkeypatch):
+    returns = pd.Series(np.random.RandomState(1).normal(0.0005, 0.01, 300))
+    monkeypatch.setattr(backtest_module, "TRADING_DAYS_PER_YEAR", 100)  # any value but the default proves it is read, not hard-coded
+
+    summary = backtest_module.strategy_performance_summary(returns)
+
+    assert summary["volatility"] == pytest.approx(returns.std() * np.sqrt(100))

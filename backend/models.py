@@ -20,6 +20,7 @@ from sqlalchemy import Date, DateTime, Float, ForeignKey, String, UniqueConstrai
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.db import Base
+from backend.market import DEFAULT_BENCHMARK
 
 
 def _uuid() -> str:
@@ -45,7 +46,7 @@ class PortfolioModel(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
     user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
-    benchmark_ticker: Mapped[str] = mapped_column(String, nullable=False, default="^GSPC")
+    benchmark_ticker: Mapped[str] = mapped_column(String, nullable=False, default=DEFAULT_BENCHMARK)
     lookback_years: Mapped[float] = mapped_column(Float, nullable=False, default=3.0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
 

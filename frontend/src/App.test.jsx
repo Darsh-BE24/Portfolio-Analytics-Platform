@@ -143,7 +143,7 @@ describe("App", () => {
     await analyze();
 
     expect(api.createPortfolio).toHaveBeenCalledTimes(1);
-    expect(screen.getByText("$3,000.00")).toBeInTheDocument();
+    expect(screen.getByText("₹3,000.00")).toBeInTheDocument();
     expect(await screen.findByText("+12.00%")).toBeInTheDocument(); // CAGR
     expect(screen.getByText("+10.00%")).toBeInTheDocument(); // latest day, derived from the series
     expect(screen.getByText("66.7%")).toBeInTheDocument(); // AAPL weight
@@ -194,7 +194,7 @@ describe("App", () => {
   it("refetches with the new risk-free rate once the field loses focus", async () => {
     render(<App />);
     await analyze();
-    await waitFor(() => expect(api.getPerformance).toHaveBeenCalledWith("p1", 0.04));
+    await waitFor(() => expect(api.getPerformance).toHaveBeenCalledWith("p1", 0.07));
 
     const field = screen.getByLabelText("Risk-free rate (%)");
     await userEvent.clear(field);
@@ -233,7 +233,7 @@ describe("Optimization tab", () => {
     expect(screen.getByRole("img", { name: /Scatter chart of the efficient frontier/ })).toBeInTheDocument();
     expect(screen.getByRole("row", { name: /^Maximum Sharpe/ })).toBeInTheDocument();
     expect(api.getEfficientFrontier).toHaveBeenCalledWith("p1", {
-      risk_free_rate: 0.04,
+      risk_free_rate: 0.07,
       n_points: 40,
       weight_bounds: [0, 1],
     });
@@ -251,7 +251,7 @@ describe("Optimization tab", () => {
 
     await waitFor(() =>
       expect(api.getEfficientFrontier).toHaveBeenLastCalledWith("p1", {
-        risk_free_rate: 0.04,
+        risk_free_rate: 0.07,
         n_points: 40,
         weight_bounds: [0.1, 0.9],
       }),
@@ -319,7 +319,7 @@ describe("Backtest tab", () => {
     expect(id).toBe("p1");
     expect(payload.transaction_cost_rate).toBeCloseTo(0.0025);
     expect(payload.split_date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    expect(payload.risk_free_rate).toBe(0.04);
+    expect(payload.risk_free_rate).toBe(0.07);
 
     expect(await screen.findByText("Test-period results")).toBeInTheDocument();
     expect(screen.getByText("2023-06-02")).toBeInTheDocument();

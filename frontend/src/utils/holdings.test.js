@@ -3,16 +3,35 @@ import { parseWeightBounds } from "./bounds";
 import { validateHoldings } from "./holdings";
 
 describe("validateHoldings", () => {
-  it("accepts valid rows and normalizes tickers to upper case", () => {
+  it("accepts valid rows, upper-cases tickers and adds the NSE suffix", () => {
     const { holdings, errors } = validateHoldings([
-      { ticker: " aapl ", quantity: "10" },
-      { ticker: "MSFT", quantity: "2.5" },
+      { ticker: " reliance ", quantity: "10" },
+      { ticker: "TCS", quantity: "2.5" },
     ]);
     expect(errors).toEqual([]);
     expect(holdings).toEqual([
-      { ticker: "AAPL", quantity: 10 },
-      { ticker: "MSFT", quantity: 2.5 },
+      { ticker: "RELIANCE.NS", quantity: 10 },
+      { ticker: "TCS.NS", quantity: 2.5 },
     ]);
+  });
+
+  it("keeps an explicit exchange suffix and never suffixes an index", () => {
+    const { holdings, errors } = validateHoldings([
+      { ticker: "reliance.bo", quantity: "1" },
+      { ticker: "TCS.NS", quantity: "1" },
+      { ticker: "^NSEI", quantity: "1" },
+    ]);
+    expect(errors).toEqual([]);
+    expect(holdings.map((h) => h.ticker)).toEqual(["RELIANCE.BO", "TCS.NS", "^NSEI"]);
+  });
+
+  it("accepts NSE symbols that contain & and -", () => {
+    const { holdings, errors } = validateHoldings([
+      { ticker: "m&m", quantity: "1" },
+      { ticker: "BAJAJ-AUTO", quantity: "1" },
+    ]);
+    expect(errors).toEqual([]);
+    expect(holdings.map((h) => h.ticker)).toEqual(["M&M.NS", "BAJAJ-AUTO.NS"]);
   });
 
   it("accepts tickers containing . ^ and -", () => {
@@ -26,12 +45,29 @@ describe("validateHoldings", () => {
 
   it("rejects duplicate tickers instead of silently dropping one", () => {
     const { holdings, errors } = validateHoldings([
-      { ticker: "AAPL", quantity: "10" },
-      { ticker: "aapl", quantity: "5" },
+      { ticker: "RELIANCE", quantity: "10" },
+      { ticker: "reliance", quantity: "5" },
     ]);
     expect(errors).toHaveLength(1);
-    expect(errors[0]).toMatch(/AAPL appears more than once/);
+    expect(errors[0]).toMatch(/RELIANCE\.NS appears more than once/);
     expect(holdings).toEqual([]);
+  });
+
+  it("treats a bare symbol and the same symbol with .NS as duplicates", () => {
+    const { errors } = validateHoldings([
+      { ticker: "TCS", quantity: "10" },
+      { ticker: "tcs.ns", quantity: "5" },
+    ]);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatch(/TCS\.NS appears more than once/);
+  });
+
+  it("does not treat the NSE and BSE listings as duplicates", () => {
+    const { errors } = validateHoldings([
+      { ticker: "TCS.NS", quantity: "10" },
+      { ticker: "TCS.BO", quantity: "5" },
+    ]);
+    expect(errors).toEqual([]);
   });
 
   it("rejects zero and negative quantities", () => {
@@ -49,7 +85,7 @@ describe("validateHoldings", () => {
   });
 
   it("rejects tickers with illegal characters", () => {
-    expect(validateHoldings([{ ticker: "$$$", quantity: "1" }]).errors[0]).toMatch(/isn't a valid ticker/);
+    expect(validateHoldings([{ ticker: "$$$", quantity: "1" }]).errors[0]).toMatch(/"\$\$\$" isn't a valid ticker/);
   });
 
   it("flags fully empty rows", () => {

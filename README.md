@@ -62,7 +62,7 @@ Requires internet access to Yahoo Finance:
 from backend.data import MarketDataService
 from backend.portfolio import Portfolio
 
-portfolio = Portfolio({"AAPL": 10, "MSFT": 5, "NVDA": 8, "AMZN": 4})
+portfolio = Portfolio({"RELIANCE.NS": 10, "TCS.NS": 5, "HDFCBANK.NS": 8, "INFY.NS": 4})
 
 svc = MarketDataService()
 prices = svc.get_latest_prices(portfolio.tickers)
@@ -156,6 +156,22 @@ print(f"Portfolio Value: ${portfolio.total_value(prices):,.2f}")
     the transaction cost of switching into the other strategies.
   - Positions are sized at the first test day's prices, exactly like every
     other strategy, so all strategies share the same one-day execution lag.
+- **The platform targets the Indian market (NSE).** Everything market-specific
+  lives in `backend/market.py` (and `frontend/src/market.js`):
+  - Bare tickers get the NSE suffix at the API boundary: `RELIANCE` becomes
+    `RELIANCE.NS`. Indices (`^NSEI`) and symbols that already carry a suffix
+    (`RELIANCE.BO` for BSE) are left alone. The same stock typed two ways is
+    rejected as a duplicate.
+  - The default benchmark is the Nifty 50 (`^NSEI`); `^BSESN` (Sensex) or an
+    ETF such as `NIFTYBEES` also work.
+  - Returns and risk are annualized with `TRADING_DAYS_PER_YEAR = 248`. NSE
+    trades roughly 245-250 days a year, so this is an approximation; change
+    it in one place if you want a different convention.
+  - Values display in rupees with lakh/crore grouping. The risk-free rate field
+    defaults to 7% (about the 10-year G-sec yield in October 2026) and is
+    meant to be edited.
+  - Portfolios saved before this change keep their old `^GSPC` benchmark and
+    US tickers. Delete `portfolio_analytics.db` (or those rows) to start clean.
 
 ### Try Milestone 2 with live data
 
@@ -165,7 +181,7 @@ from backend.performance import daily_returns, portfolio_returns, cagr, sharpe_r
 from datetime import date, timedelta
 
 svc = MarketDataService()
-weights = {"AAPL": 0.4, "MSFT": 0.3, "NVDA": 0.2, "AMZN": 0.1}
+weights = {"RELIANCE.NS": 0.4, "TCS.NS": 0.3, "HDFCBANK.NS": 0.2, "INFY.NS": 0.1}
 prices = svc.get_price_data(weights.keys(), date.today() - timedelta(days=365*3), date.today())
 
 asset_returns = daily_returns(prices)
@@ -188,7 +204,8 @@ print(f"Sortino:{sortino_ratio(port_returns, risk_free_rate=0.04):.2f}")
   with big positive outliers and small, consistent losses will show a much
   higher Sortino than Sharpe -- that gap is a genuine signal, not a bug.
 - **Annual risk-free rate is converted to a daily rate** by dividing by
-  `periods_per_year` (default 252). This ignores intra-year compounding of
+  `periods_per_year` (default `TRADING_DAYS_PER_YEAR`, 248 -- see
+  `backend/market.py`). This ignores intra-year compounding of
   the risk-free rate, a standard simplification for daily-frequency Sharpe/
   Sortino calculations.
 - **Zero-volatility and no-downside edge cases raise explicitly** rather

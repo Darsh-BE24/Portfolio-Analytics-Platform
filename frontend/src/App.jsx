@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api } from "./api/client";
 import PortfolioForm from "./components/PortfolioForm";
 import { clearResourceCache } from "./hooks/useResource";
+import { DEFAULT_RISK_FREE_PERCENT } from "./market";
 import BacktestTab from "./tabs/BacktestTab";
 import OptimizationTab from "./tabs/OptimizationTab";
 import OverviewTab from "./tabs/OverviewTab";
@@ -30,8 +31,8 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [serverError, setServerError] = useState(null);
 
-  const [riskFreeInput, setRiskFreeInput] = useState("4");
-  const [riskFreeRate, setRiskFreeRate] = useState(0.04);
+  const [riskFreeInput, setRiskFreeInput] = useState(String(DEFAULT_RISK_FREE_PERCENT));
+  const [riskFreeRate, setRiskFreeRate] = useState(DEFAULT_RISK_FREE_PERCENT / 100);
   const [riskFreeError, setRiskFreeError] = useState(null);
 
   const [activeTab, setActiveTab] = useState("overview");

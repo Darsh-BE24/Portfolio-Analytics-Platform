@@ -28,6 +28,7 @@ import pytest
 from backend import data as data_module
 from backend.backtest import BacktestError, buy_and_hold_returns, run_backtest, train_test_split
 from backend.data import MarketDataService
+from backend.market import TRADING_DAYS_PER_YEAR
 from backend.optimization import minimum_volatility
 from backend.performance import (
     PerformanceError,
@@ -249,8 +250,8 @@ def test_late_start_asset_cagr_is_annualized_over_the_actual_common_window():
     assert port.isna().sum() == 0
     assert port.tolist() == pytest.approx([0.015] * (n - late - 1))
     assert cumulative_returns(port).iloc[-1] == pytest.approx(1.015 ** (n - late - 1) - 1)
-    # 239 days at 1.5% per day, annualized over those same 239 days = 1.015^252 - 1.
-    assert cagr(port) == pytest.approx(1.015**252 - 1)
+    # 239 days at 1.5% per day, annualized over those same 239 days = 1.015^TRADING_DAYS_PER_YEAR - 1.
+    assert cagr(port) == pytest.approx(1.015**TRADING_DAYS_PER_YEAR - 1)
 
 
 def test_metrics_on_gappy_data_equal_hand_computed_values_with_prices_carried_forward():
@@ -285,10 +286,10 @@ def test_metrics_on_gappy_data_equal_hand_computed_values_with_prices_carried_fo
     assert len(port) == n - 1
     assert port.to_numpy() == pytest.approx(exp_port)
     assert cumulative_returns(port).iloc[-1] == pytest.approx(wealth[-1] - 1)
-    assert annualized_volatility(port) == pytest.approx(np.std(exp_port, ddof=1) * np.sqrt(252))
-    assert sharpe_ratio(port) == pytest.approx(exp_port.mean() / np.std(exp_port, ddof=1) * np.sqrt(252))
+    assert annualized_volatility(port) == pytest.approx(np.std(exp_port, ddof=1) * np.sqrt(TRADING_DAYS_PER_YEAR))
+    assert sharpe_ratio(port) == pytest.approx(exp_port.mean() / np.std(exp_port, ddof=1) * np.sqrt(TRADING_DAYS_PER_YEAR))
     downside = exp_port[exp_port < 0]
-    assert sortino_ratio(port) == pytest.approx(exp_port.mean() / np.sqrt((downside**2).mean()) * np.sqrt(252))
+    assert sortino_ratio(port) == pytest.approx(exp_port.mean() / np.sqrt((downside**2).mean()) * np.sqrt(TRADING_DAYS_PER_YEAR))
     assert max_drawdown(port) == pytest.approx(drawdown.min())
     assert current_drawdown(port) == pytest.approx(drawdown[-1])  # trailing gap must not make this NaN
     var95 = np.percentile(exp_port, 5)
@@ -296,7 +297,7 @@ def test_metrics_on_gappy_data_equal_hand_computed_values_with_prices_carried_fo
     assert historical_cvar(port) == pytest.approx(exp_port[exp_port <= var95].mean())
     assert beta(port, bench) == pytest.approx(np.cov(exp_port, exp_bench)[0, 1] / np.var(exp_bench, ddof=1))
     assert portfolio_volatility(ar, weights) == pytest.approx(
-        np.sqrt(w @ np.cov(exp_assets.T) @ w) * np.sqrt(252)
+        np.sqrt(w @ np.cov(exp_assets.T) @ w) * np.sqrt(TRADING_DAYS_PER_YEAR)
     )
 
 

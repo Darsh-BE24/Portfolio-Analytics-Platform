@@ -17,8 +17,7 @@ from typing import Callable, Iterable
 import pandas as pd
 import yfinance as yf
 
-DEFAULT_BENCHMARK = "^GSPC"  # S&P 500
-TRADING_DAYS_PER_YEAR = 252
+from backend.market import DEFAULT_BENCHMARK, TRADING_DAYS_PER_YEAR  # noqa: F401 -- re-exported
 
 # Freshness policy for latest ("current") prices: a price fetched from the provider is
 # reused for at most this many seconds, then re-fetched. Deliberately SHORT and
@@ -136,7 +135,7 @@ class MarketDataService:
         return volume
 
     def get_benchmark_data(self, start: date, end: date, ticker: str | None = None) -> pd.Series:
-        """Fetch adjusted close prices for the benchmark (default: S&P 500)."""
+        """Fetch adjusted close prices for the benchmark (default: Nifty 50)."""
         ticker = ticker or self.benchmark_ticker
         df = self.get_price_data([ticker], start, end)
         return df[ticker].rename(ticker)
