@@ -1,219 +1,277 @@
-# Financial Portfolio Analytics & Optimization Platform
+# Financial Portfolio Analytics & Optimization Platform (Indian Market)
 
-A quantitative finance project: portfolio valuation, performance/risk analytics,
-optimization, efficient frontier, and backtesting -- built as a Python analytics
-engine first, with FastAPI + React + PostgreSQL layered on top.
+A quantitative finance project for Indian equities (NSE by default): portfolio
+valuation, performance and risk analytics, optimization, the efficient frontier,
+and backtesting. It is a Python analytics engine first, with a FastAPI backend,
+a React dashboard, and SQLite/PostgreSQL storage layered on top.
 
-## Status: Milestone 2 -- Returns, CAGR, Sharpe, Sortino, rolling metrics
+## Features
 
-### What's implemented
+- **Portfolio valuation** -- positions, weights and total value in rupees from live Yahoo Finance prices.
+- **Performance** -- returns, CAGR, annualized Sharpe and Sortino ratios, rolling returns/Sharpe, comparison with a benchmark (Nifty 50 by default).
+- **Risk** -- volatility, beta, drawdown, Value at Risk, correlation matrix, concentration (HHI, effective number of holdings).
+- **Optimization** -- minimum-volatility and maximum-Sharpe portfolios, and the efficient frontier.
+- **Backtesting** -- train/test split with no look-ahead: current, equal-weight, min-volatility, max-Sharpe and benchmark strategies, with transaction costs.
+- **Web dashboard** -- five tabs (Overview, Performance, Risk, Optimization, Backtest) with Plotly charts.
 
-- `backend/portfolio.py` -- `Portfolio` class: input validation, position
-  valuation, and weight calculation. Pure Python/dataclasses, no network
-  dependency, fully unit tested.
-- `backend/data.py` -- `MarketDataService`: wraps yfinance for historical
-  prices, volume, benchmark data, and latest prices. This is the only
-  module in the project that imports yfinance.
-- `backend/performance.py` -- daily/cumulative returns, portfolio returns
-  from fixed weights, CAGR, annualized Sharpe & Sortino ratios, rolling
-  returns/Sharpe, and portfolio-vs-benchmark comparison. Pure pandas/numpy
-  logic, no network dependency, fully unit tested with hand-checkable values.
-
-### Project structure
+## Project structure
 
 ```
 backend/
-├── __init__.py
-├── data.py              # yfinance wrapper (market data)
-├── portfolio.py          # position valuation & weights (pure logic)
-├── performance.py        # returns, CAGR, Sharpe, Sortino, rolling metrics
+├── main.py              # FastAPI app: thin routes, error translation, CORS
+├── service.py           # orchestrates the engine, the cache and the database
+├── schemas.py           # request/response models (pydantic)
+├── market.py            # market settings: benchmark, ticker suffix, trading days
+├── data.py              # yfinance wrapper (the only module that imports yfinance)
+├── cache.py             # database-backed historical price cache
+├── db.py, models.py     # SQLAlchemy engine and tables
+├── portfolio.py         # position valuation and weights (pure logic)
+├── performance.py       # returns, CAGR, Sharpe, Sortino, rolling metrics
+├── risk.py              # volatility, beta, drawdown, VaR, correlation, concentration
+├── optimization.py      # min-volatility, max-Sharpe, efficient frontier
+├── backtest.py          # train/test split, strategy comparison, transaction costs
 ├── requirements.txt
-└── tests/
-    ├── __init__.py
-    ├── test_portfolio.py     # 18 tests, no network needed
-    ├── test_data.py          # 7 tests, mocked yfinance, no network needed
-    └── test_performance.py   # 25 tests, no network needed
+└── tests/               # pytest suite, no network needed (yfinance is mocked)
+
+frontend/
+├── src/
+│   ├── App.jsx, main.jsx
+│   ├── market.js        # market settings (mirrors backend/market.py)
+│   ├── api/             # API client
+│   ├── components/      # form, metric tiles, plots, loading/error wrapper
+│   ├── hooks/           # data-fetching hooks
+│   ├── tabs/            # Overview, Performance, Risk, Optimization, Backtest
+│   └── utils/           # holdings validation, number/currency formatting
+└── package.json         # Vite + React + vitest
+
+smoke_test.py            # end-to-end check against a running backend (live data)
 ```
 
 ## Setup
+
+Requires Python 3.9 or newer and Node.js 18 or newer.
 
 ```bash
 python3 -m venv venv
 source venv/bin/activate        # Windows: venv\Scripts\Activate.ps1
 pip install -r backend/requirements.txt
+
+cd frontend
+npm install
 ```
 
-## Run tests
+## Run the app
 
-From the project root:
+Start the backend from the project root (virtual environment active):
 
 ```bash
-python -m pytest backend/tests/ -v
+python -m uvicorn backend.main:app --reload
 ```
 
-Expected: all tests pass, no network access required (yfinance calls are
-mocked in `test_data.py`).
+The API runs at http://127.0.0.1:8000 (interactive docs at `/docs`). In a second
+terminal, start the frontend:
 
-## Try it with live data
+```bash
+cd frontend
+npm run dev
+```
 
-Requires internet access to Yahoo Finance:
+Open the address it prints (http://localhost:5173). Add your holdings, for
+example `RELIANCE`, `TCS`, `HDFCBANK`, `INFY`, and click create.
+
+### Configuration
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `DATABASE_URL` | `sqlite:///./portfolio_analytics.db` | Use PostgreSQL with e.g. `postgresql://user:password@localhost:5432/portfolio_analytics` |
+| `CORS_ORIGINS` | the local dev server | Comma-separated list of allowed frontend origins for a deployed frontend |
+
+### API endpoints
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/portfolio` | Create a portfolio (validates every holding and the benchmark against live prices) |
+| GET | `/portfolio/{id}` | Portfolio with current values and weights |
+| GET | `/portfolio/{id}/performance` | CAGR, Sharpe, Sortino, benchmark comparison |
+| GET | `/portfolio/{id}/risk` | Volatility, beta, drawdown, VaR, concentration |
+| GET | `/portfolio/{id}/correlation` | Correlation matrix |
+| POST | `/portfolio/{id}/optimize` | Minimum-volatility or maximum-Sharpe weights |
+| POST | `/portfolio/{id}/efficient-frontier` | Efficient frontier points |
+| POST | `/portfolio/{id}/backtest` | Out-of-sample strategy comparison |
+| GET | `/health` | Health check |
+
+## Run the tests
+
+Backend, from the project root (no network access needed):
+
+```bash
+python -m pytest backend
+```
+
+Frontend:
+
+```bash
+cd frontend
+npm test
+npm run build
+```
+
+### End-to-end smoke test (live data)
+
+With the backend running, in another terminal (same virtual environment):
+
+```bash
+python smoke_test.py
+```
+
+It creates a portfolio from live Yahoo Finance data, calls every endpoint, checks
+the error cases (unknown ticker, duplicate holding, unknown portfolio) and prints
+PASS or FAIL for each check. It needs internet access and uses only the standard
+library. Options: `--base-url`, `--holdings "RELIANCE:10,TCS:5"`, `--risk-free 0.07`.
+
+## Try it from Python (live data)
 
 ```python
+from datetime import date, timedelta
+
 from backend.data import MarketDataService
+from backend.performance import daily_returns, portfolio_returns, cagr, sharpe_ratio, sortino_ratio
 from backend.portfolio import Portfolio
 
 portfolio = Portfolio({"RELIANCE.NS": 10, "TCS.NS": 5, "HDFCBANK.NS": 8, "INFY.NS": 4})
-
 svc = MarketDataService()
 prices = svc.get_latest_prices(portfolio.tickers)
 
 for v in portfolio.value(prices):
-    print(f"{v.ticker:<6}{v.price:<10.2f}{v.quantity:<10.0f}{v.value:<12.2f}{v.weight:.2%}")
+    print(f"{v.ticker:<14}{v.price:<10.2f}{v.quantity:<8.0f}{v.value:<12.2f}{v.weight:.2%}")
+print(f"Portfolio value: Rs {portfolio.total_value(prices):,.2f}")
 
-print(f"Portfolio Value: ${portfolio.total_value(prices):,.2f}")
+weights = {"RELIANCE.NS": 0.4, "TCS.NS": 0.3, "HDFCBANK.NS": 0.2, "INFY.NS": 0.1}
+history = svc.get_price_data(weights.keys(), date.today() - timedelta(days=365 * 3), date.today())
+returns = portfolio_returns(daily_returns(history), weights)
+
+print(f"CAGR:    {cagr(returns):.2%}")
+print(f"Sharpe:  {sharpe_ratio(returns, risk_free_rate=0.07):.2f}")
+print(f"Sortino: {sortino_ratio(returns, risk_free_rate=0.07):.2f}")
 ```
 
 ## Design notes
 
+### The Indian market
+
+The platform targets NSE. Everything market-specific lives in `backend/market.py`
+(and `frontend/src/market.js`), so changing markets means editing one file.
+
+- **Tickers.** Bare symbols get the NSE suffix at the API boundary: `RELIANCE`
+  becomes `RELIANCE.NS`. Indices (`^NSEI`) and symbols that already carry a
+  suffix (`RELIANCE.BO` for BSE) are left alone. Symbols with `&` or `-`
+  (`M&M`, `BAJAJ-AUTO`) are valid. The same stock typed two ways is rejected
+  as a duplicate.
+- **Benchmark.** The default is the Nifty 50 (`^NSEI`). `^BSESN` (Sensex) or an
+  ETF such as `NIFTYBEES` also work.
+- **Annualization.** Returns and risk use `TRADING_DAYS_PER_YEAR = 248`. NSE
+  trades roughly 245-250 days a year, so this is an approximation; every module
+  reads the same constant.
+- **Display.** Values show in rupees with lakh/crore grouping. The risk-free rate
+  field defaults to 7% (about the 10-year G-sec yield) and is meant to be edited.
+- **Older data.** Portfolios saved before the switch keep their old `^GSPC`
+  benchmark and US tickers. Delete `portfolio_analytics.db` (or those rows) to
+  start clean.
+
+### Architecture
+
 - **`portfolio.py` never imports yfinance.** Financial calculations are kept
-  separate from data-fetching so they can be unit tested with fixed inputs,
-  without network calls or API flakiness.
-- **Missing data is never silently dropped.** A missing price for a holding,
-  or an invalid/delisted ticker, raises an explicit error rather than being
-  skipped -- silently dropping a position would understate portfolio value
-  and distort every other holding's weight.
-- **Inputs are normalized at the boundary.** Tickers are upper-cased and
-  stripped of whitespace in `Portfolio.__init__`, so every method downstream
-  can assume clean data.
-- **Partial / gappy price data is handled explicitly in `daily_returns()`**
-  (the backtester's buy-and-hold simulation uses the same rule), rather than
-  depending on pandas' version-specific `pct_change` gap filling:
+  separate from data fetching, so they are unit tested with fixed inputs, without
+  network calls or API flakiness. `data.py` is the only module that imports
+  yfinance.
+- **Missing data is never silently dropped.** A missing price for a holding, or
+  an invalid or delisted ticker, raises an explicit error. Silently dropping a
+  position would understate portfolio value and distort every other weight.
+- **Inputs are normalized at the boundary.** Tickers are stripped, upper-cased and
+  suffixed once, so every method downstream can assume clean data.
+
+### Performance and risk
+
+- **Partial or gappy price data is handled explicitly** in `daily_returns()` (the
+  backtester uses the same rule), instead of relying on pandas' version-specific
+  gap filling:
   - Weekends and exchange holidays are absent dates, not missing data. The
     return across them is the true multi-day move.
   - A gap of up to `MAX_FFILL_GAP` (5) consecutive missing prices for one asset
-    is bridged by carrying the last price forward: 0% on the missing days, and
-    the next observed price realizes the full move, so no return is lost.
-  - An asset that starts trading later (leading gap) is valid partial history.
-    Because a fixed-weight portfolio return needs every holding, analysis uses
-    the **common window** -- from the first date all assets have a return. Note
-    this shortens the window used for CAGR/volatility/VaR/optimization.
+    is bridged by carrying the last price forward.
+  - An asset that starts trading later is valid partial history. Because a
+    fixed-weight portfolio return needs every holding, analysis uses the
+    **common window** -- from the first date all assets have a return. This
+    shortens the window used for CAGR, volatility, VaR and optimization.
   - A longer interior or trailing gap, or an asset with fewer than 2 prices,
     raises a `PerformanceError` naming the asset (never a silent NaN).
-  - Covariance/volatility with fewer than 2 overlapping observations raises a
+  - Covariance or volatility with fewer than 2 overlapping observations raises a
     `RiskError`.
-- **Latest (current) prices are cached briefly, in memory.**
-  `MarketDataService.get_latest_prices()` reuses a fetched price for
-  `LATEST_PRICE_TTL_SECONDS` (60s), per normalized ticker, instead of hitting
-  the provider on every request (one dashboard view used to trigger ~5
-  identical downloads, and could show different prices on different tabs).
-  - The TTL is deliberately short and **not market-hours aware**: open markets
-    get bounded staleness, closed markets (nights, weekends, holidays) cannot
-    change anyway, and no per-exchange calendar logic is needed.
-  - Provider errors and invalid tickers are never cached, and an expired price
-    is never served as a fallback if the provider fails. Portfolio creation
-    validates every holding and the benchmark through this call before writing
-    to the database; the cache cannot weaken that gate.
-  - `get_latest_quotes()` also returns each price's trading date and fetch time,
-    so "last close from Friday" is distinguishable from a fresh quote.
-  - Pass `latest_price_ttl_seconds=0` to disable. This cache is separate from
-    the DB-backed historical cache (`cache.py`), which has no fetch timestamps
-    and never refreshes existing rows, so it cannot safely hold current prices.
+- **Fixed-weight assumption.** `portfolio_returns()` combines asset returns using
+  constant weights, which assumes the portfolio is rebalanced to those weights
+  every period. It does not model natural weight drift; the backtester models a
+  true buy-and-hold position.
+- **Sharpe vs. Sortino.** Sharpe penalizes total volatility; Sortino penalizes
+  only downside deviation. A large gap between them is a real signal, not a bug.
+- **The annual risk-free rate is converted to a daily rate** by dividing by
+  `periods_per_year` (default `TRADING_DAYS_PER_YEAR`). This ignores intra-year
+  compounding, a standard simplification for daily Sharpe and Sortino.
+- **Zero-volatility and no-downside edge cases raise explicitly** rather than
+  returning `inf` or `nan`.
 
+### Caching
+
+- **Latest prices are cached briefly, in memory.**
+  `MarketDataService.get_latest_prices()` reuses a fetched price for
+  `LATEST_PRICE_TTL_SECONDS` (60 s) per normalized ticker, so one dashboard view
+  does not trigger several identical downloads or show different prices on
+  different tabs.
+  - The TTL is short and **not market-hours aware**: open markets get bounded
+    staleness, and closed markets cannot change anyway.
+  - Provider errors and invalid tickers are never cached, and an expired price is
+    never served as a fallback. Portfolio creation validates every holding and
+    the benchmark through this call before writing to the database.
+  - `get_latest_quotes()` also returns each price's trading date and fetch time.
+  - Pass `latest_price_ttl_seconds=0` to disable.
 - **The historical price cache tracks coverage ranges, not business days.**
-  `cache.py` records, per ticker, which date ranges were actually fetched
-  (`MarketDataCoverage`); a request is a cache hit only if a recorded range
-  contains it. It used to compare cached rows against every Mon-Fri in the
-  range, so any range spanning an exchange holiday (nearly every multi-month
-  lookback) could never be judged complete and was re-downloaded each time.
-  No holiday calendar is needed, so it is correct for any exchange.
+  `cache.py` records which date ranges were actually fetched per ticker; a request
+  is a cache hit only if a recorded range contains it. No holiday calendar is
+  needed, so it is correct for any exchange.
   - Interior gaps (holidays, a day with no bar) do not affect coverage.
   - A response whose last observation is more than 7 days before the requested
-    end looks truncated (outage / rate limit, not a market closure): coverage
-    is recorded only up to what was observed, so the next request retries.
-    A truncation shorter than 7 days is not detected.
-  - An asset whose history simply starts later than the requested start is
-    cached as-is (retrying cannot produce data that does not exist); a transient
-    failure that dropped only the *start* of a response would look the same.
-  - A failed fetch records nothing. Extending a range refetches the whole
-    request (not just the new days) and merges coverage into one row.
-  - Existing databases pick up the new table on startup (`create_all`). Rows
-    cached before this change have no coverage record, so each range is
-    refetched once and then cached normally.
-- **The backtest's "current" strategy is a what-if, valued at the split date.**
-  It answers "what if I had held my current share counts throughout the test
-  period?" -- not "what did my portfolio actually do": the data model has no
-  transaction history, so past holdings are unknowable. The weights are the
-  share counts valued at the last prices known on or before the split date
-  (`backtest.holdings_weights_as_of`), the same information the optimized
-  strategies get. They were previously valued at today's live price, which is
-  the end of the test window, so a holding that rallied during the test started
-  with an inflated weight and the strategy was credited for gains it could not
-  have known about. Other endpoints still use live weights ("my portfolio now").
-  - A holding with no price, a price older than `MAX_FFILL_GAP` observations,
-    or a non-positive price at the split date raises a `BacktestError` naming
-    it, instead of being skipped or priced with a stale quote.
+    end looks truncated (outage or rate limit): coverage is recorded only up to
+    what was observed, so the next request retries.
+  - An asset whose history starts later than the requested start is cached as-is.
+  - A failed fetch records nothing. Extending a range refetches the whole request
+    and merges coverage into one row.
+  - Existing databases pick up the coverage table on startup.
+
+### Backtesting
+
+- **The optimizer never sees test-period data.** Expected returns and covariance
+  are estimated only from data before the split date.
+- **The "current" strategy is a what-if, valued at the split date.** It answers
+  "what if I had held my current share counts throughout the test period?" -- not
+  "what did my portfolio actually do", because there is no transaction history.
+  Weights are the share counts valued at the last prices known on or before the
+  split date (`backtest.holdings_weights_as_of`), the same information the
+  optimized strategies get. Valuing them at today's price would credit the
+  strategy for gains it could not have known about. Other endpoints still use
+  live weights ("my portfolio now").
+  - A holding with no price, a price older than `MAX_FFILL_GAP` observations, or
+    a non-positive price at the split date raises a `BacktestError` naming it.
   - The split-date allocation is also the "from" side of the turnover used for
     the transaction cost of switching into the other strategies.
-  - Positions are sized at the first test day's prices, exactly like every
-    other strategy, so all strategies share the same one-day execution lag.
-- **The platform targets the Indian market (NSE).** Everything market-specific
-  lives in `backend/market.py` (and `frontend/src/market.js`):
-  - Bare tickers get the NSE suffix at the API boundary: `RELIANCE` becomes
-    `RELIANCE.NS`. Indices (`^NSEI`) and symbols that already carry a suffix
-    (`RELIANCE.BO` for BSE) are left alone. The same stock typed two ways is
-    rejected as a duplicate.
-  - The default benchmark is the Nifty 50 (`^NSEI`); `^BSESN` (Sensex) or an
-    ETF such as `NIFTYBEES` also work.
-  - Returns and risk are annualized with `TRADING_DAYS_PER_YEAR = 248`. NSE
-    trades roughly 245-250 days a year, so this is an approximation; change
-    it in one place if you want a different convention.
-  - Values display in rupees with lakh/crore grouping. The risk-free rate field
-    defaults to 7% (about the 10-year G-sec yield in October 2026) and is
-    meant to be edited.
-  - Portfolios saved before this change keep their old `^GSPC` benchmark and
-    US tickers. Delete `portfolio_analytics.db` (or those rows) to start clean.
+  - Positions are sized at the first test day's prices, like every other
+    strategy, so all strategies share the same one-day execution lag.
 
-### Try Milestone 2 with live data
+## Known limitations
 
-```python
-from backend.data import MarketDataService
-from backend.performance import daily_returns, portfolio_returns, cagr, sharpe_ratio, sortino_ratio
-from datetime import date, timedelta
-
-svc = MarketDataService()
-weights = {"RELIANCE.NS": 0.4, "TCS.NS": 0.3, "HDFCBANK.NS": 0.2, "INFY.NS": 0.1}
-prices = svc.get_price_data(weights.keys(), date.today() - timedelta(days=365*3), date.today())
-
-asset_returns = daily_returns(prices)
-port_returns = portfolio_returns(asset_returns, weights)
-
-print(f"CAGR:   {cagr(port_returns):.2%}")
-print(f"Sharpe: {sharpe_ratio(port_returns, risk_free_rate=0.04):.2f}")
-print(f"Sortino:{sortino_ratio(port_returns, risk_free_rate=0.04):.2f}")
-```
-
-### Design notes specific to performance.py
-
-- **Fixed-weight assumption:** `portfolio_returns()` combines asset returns
-  using constant weights, which implicitly assumes the portfolio is
-  rebalanced back to those weights every period. It does not model natural
-  weight drift from a true buy-and-hold position -- that's addressed later
-  in backtesting (Milestone 6), where rebalancing frequency becomes explicit.
-- **Sharpe vs. Sortino:** Sharpe penalizes total volatility (including
-  upside swings); Sortino only penalizes downside deviation. A strategy
-  with big positive outliers and small, consistent losses will show a much
-  higher Sortino than Sharpe -- that gap is a genuine signal, not a bug.
-- **Annual risk-free rate is converted to a daily rate** by dividing by
-  `periods_per_year` (default `TRADING_DAYS_PER_YEAR`, 248 -- see
-  `backend/market.py`). This ignores intra-year compounding of
-  the risk-free rate, a standard simplification for daily-frequency Sharpe/
-  Sortino calculations.
-- **Zero-volatility and no-downside edge cases raise explicitly** rather
-  than returning `inf`/`nan` silently -- a `PerformanceError` with a message
-  is far easier to debug than a silent `NaN` propagating into later results.
-
-## Next milestone
-
-`risk.py` -- portfolio volatility (via the covariance matrix), beta,
-drawdown (current, max, recovery period), correlation matrix, and
-concentration risk (HHI, effective number of holdings).
+- There is no authentication; the database has a users table, but nothing uses it.
+- `TRADING_DAYS_PER_YEAR` is an approximation, not an exact NSE holiday calendar.
+- Market data comes from Yahoo Finance through yfinance, so availability and
+  history for individual Indian symbols depend on that provider.
+- The backtest "current" strategy is a what-if (see above), not a record of real
+  past holdings.
+- `backend/tests/test_backtest_lookahead.py` builds its scenario around today's
+  date; its thresholds are set to hold for any date through 2034.
